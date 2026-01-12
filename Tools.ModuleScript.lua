@@ -458,6 +458,9 @@ function RogueToolbar:_findToolInstanceById(toolId: string): Tool?
 	local t = self.ToolInstancesById[toolId]
 	if t and t.Parent then return t end
 
+	t = self:_findToolByNameWithoutId(toolId)
+	if t then return t end
+
 	local char = self.Character
 	if char then
 		for _, inst in ipairs(char:GetChildren()) do
@@ -501,6 +504,9 @@ function RogueToolbar:_findToolInstanceByDef(def: ToolDef): Tool?
 	local t = self.ToolInstancesById[def.Id]
 	if t and t.Parent then return t end
 
+	t = self:_findToolByNameWithoutId(def.Name)
+	if t then return t end
+
 	local char = self.Character
 	if char then
 		for _, inst in ipairs(char:GetChildren()) do
@@ -543,6 +549,9 @@ end
 function RogueToolbar:_findToolInstanceForSlot(slot: SlotUI): Tool?
 	local t = self.ToolInstancesById[slot.Tool.Id]
 	if t and t.Parent then return t end
+
+	t = self:_findToolByNameWithoutId(slot.Tool.Name)
+	if t then return t end
 
 	local char = self.Character
 	if char then
