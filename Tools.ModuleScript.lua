@@ -454,6 +454,10 @@ function RogueToolbar:_isEquipped(tool: Tool): boolean
 	return (self.Character ~= nil and tool.Parent == self.Character)
 end
 
+function RogueToolbar:_isInInventory(tool: Tool): boolean
+	return tool.Parent == self.Backpack or tool.Parent == self.Character
+end
+
 function RogueToolbar:_findToolInstanceById(toolId: string): Tool?
 	local t = self.ToolInstancesById[toolId]
 	if t and t.Parent then return t end
@@ -493,6 +497,9 @@ function RogueToolbar:_findToolInstanceById(toolId: string): Tool?
 			end
 		end
 	end
+
+	t = self:_findToolByNameWithoutId(toolId)
+	if t then return t end
 
 	return nil
 end
@@ -537,6 +544,9 @@ function RogueToolbar:_findToolInstanceByDef(def: ToolDef): Tool?
 		end
 	end
 
+	t = self:_findToolByNameWithoutId(def.Name)
+	if t then return t end
+
 	return nil
 end
 
@@ -579,6 +589,9 @@ function RogueToolbar:_findToolInstanceForSlot(slot: SlotUI): Tool?
 			end
 		end
 	end
+
+	t = self:_findToolByNameWithoutId(slot.Tool.Name)
+	if t then return t end
 
 	return nil
 end
