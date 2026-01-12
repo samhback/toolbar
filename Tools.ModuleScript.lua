@@ -435,7 +435,7 @@ function RogueToolbar:_findToolByNameWithoutId(name: string): Tool?
 	if not list then return nil end
 	for i = #list, 1, -1 do
 		local tool = list[i]
-		if tool and self:_isInInventory(tool) then
+		if tool and tool.Parent then
 			local tid = tool:GetAttribute("ToolId")
 			if type(tid) ~= "string" or tid == "" then
 				return tool
@@ -460,7 +460,10 @@ end
 
 function RogueToolbar:_findToolInstanceById(toolId: string): Tool?
 	local t = self.ToolInstancesById[toolId]
-	if t and self:_isInInventory(t) then return t end
+	if t and t.Parent then return t end
+
+	t = self:_findToolByNameWithoutId(toolId)
+	if t then return t end
 
 	local char = self.Character
 	if char then
@@ -503,7 +506,10 @@ end
 
 function RogueToolbar:_findToolInstanceByDef(def: ToolDef): Tool?
 	local t = self.ToolInstancesById[def.Id]
-	if t and self:_isInInventory(t) then return t end
+	if t and t.Parent then return t end
+
+	t = self:_findToolByNameWithoutId(def.Name)
+	if t then return t end
 
 	local char = self.Character
 	if char then
@@ -546,7 +552,10 @@ end
 
 function RogueToolbar:_findToolInstanceForSlot(slot: SlotUI): Tool?
 	local t = self.ToolInstancesById[slot.Tool.Id]
-	if t and self:_isInInventory(t) then return t end
+	if t and t.Parent then return t end
+
+	t = self:_findToolByNameWithoutId(slot.Tool.Name)
+	if t then return t end
 
 	local char = self.Character
 	if char then
