@@ -217,7 +217,7 @@ function RogueToolbar.MakeToolbar(playerGui: PlayerGui, opts: Options?): RogueTo
 	self.Backpack = self.Player:WaitForChild("Backpack") :: Backpack
 	self.Character = self.Player.Character :: Model?
 	self.ToolInstancesById = {} :: { [string]: Tool }
-	self.ToolInstancesByName = {} :: { [string]: Tool }
+	self.ToolInstancesByName = {} :: { [string]: { Tool } }
 
 	local remotes = ReplicatedStorage:WaitForChild("Remotes")
 	self.DropRemote = remotes:WaitForChild("Drop") :: RemoteEvent
@@ -379,17 +379,70 @@ function RogueToolbar:_setupToolLinking(): ()
 end
 
 function RogueToolbar:_indexTool(tool: Tool): ()
-	local idAttr = tool:GetAttribute("ToolId")
-	local id = (type(idAttr) == "string" and idAttr ~= "") and idAttr or tool.Name
+	local function resolveToolId(): string
+		local idAttr = tool:GetAttribute("ToolId")
+		return (type(idAttr) == "string" and idAttr ~= "") and idAttr or tool.Name
+	end
+
+	local function addToNameIndex(name: string): ()
+		local list = self.ToolInstancesByName[name]
+		if not list then
+			list = {}
+			self.ToolInstancesByName[name] = list
+		end
+		if not table.find(list, tool) then
+			table.insert(list, tool)
+		end
+	end
+
+	local function removeFromNameIndex(name: string): ()
+		local list = self.ToolInstancesByName[name]
+		if not list then return end
+		for i = #list, 1, -1 do
+			if list[i] == tool then
+				table.remove(list, i)
+			end
+		end
+		if #list == 0 then
+			self.ToolInstancesByName[name] = nil
+		end
+	end
+
+	local id = resolveToolId()
 	self.ToolInstancesById[id] = tool
-	self.ToolInstancesByName[tool.Name] = tool
+	addToNameIndex(tool.Name)
 
 	table.insert(self._conns, tool.AncestryChanged:Connect(function(_, parent: Instance?)
 		if parent == nil then
 			if self.ToolInstancesById[id] == tool then self.ToolInstancesById[id] = nil end
-			if self.ToolInstancesByName[tool.Name] == tool then self.ToolInstancesByName[tool.Name] = nil end
+			removeFromNameIndex(tool.Name)
 		end
 	end))
+
+	table.insert(self._conns, tool:GetAttributeChangedSignal("ToolId"):Connect(function()
+		local newId = resolveToolId()
+		if newId == id then return end
+		if self.ToolInstancesById[id] == tool then
+			self.ToolInstancesById[id] = nil
+		end
+		self.ToolInstancesById[newId] = tool
+		id = newId
+	end))
+end
+
+function RogueToolbar:_findToolByNameWithoutId(name: string): Tool?
+	local list = self.ToolInstancesByName[name]
+	if not list then return nil end
+	for i = #list, 1, -1 do
+		local tool = list[i]
+		if tool and tool.Parent then
+			local tid = tool:GetAttribute("ToolId")
+			if type(tid) ~= "string" or tid == "" then
+				return tool
+			end
+		end
+	end
+	return nil
 end
 
 function RogueToolbar:_getHumanoid(): Humanoid?
@@ -405,15 +458,17 @@ function RogueToolbar:_findToolInstanceById(toolId: string): Tool?
 	local t = self.ToolInstancesById[toolId]
 	if t and t.Parent then return t end
 
-	t = self.ToolInstancesByName[toolId]
-	if t and t.Parent then return t end
-
 	local char = self.Character
 	if char then
 		for _, inst in ipairs(char:GetChildren()) do
 			if inst:IsA("Tool") then
 				local tid = inst:GetAttribute("ToolId")
-				if (type(tid) == "string" and tid == toolId) or inst.Name == toolId then
+				if type(tid) == "string" and tid ~= "" then
+					if tid == toolId then
+						self:_indexTool(inst)
+						return inst
+					end
+				elseif inst.Name == toolId then
 					self:_indexTool(inst)
 					return inst
 				end
@@ -424,12 +479,20 @@ function RogueToolbar:_findToolInstanceById(toolId: string): Tool?
 	for _, inst in ipairs(self.Backpack:GetChildren()) do
 		if inst:IsA("Tool") then
 			local tid = inst:GetAttribute("ToolId")
-			if (type(tid) == "string" and tid == toolId) or inst.Name == toolId then
+			if type(tid) == "string" and tid ~= "" then
+				if tid == toolId then
+					self:_indexTool(inst)
+					return inst
+				end
+			elseif inst.Name == toolId then
 				self:_indexTool(inst)
 				return inst
 			end
 		end
 	end
+
+	t = self:_findToolByNameWithoutId(toolId)
+	if t then return t end
 
 	return nil
 end
@@ -438,18 +501,17 @@ function RogueToolbar:_findToolInstanceByDef(def: ToolDef): Tool?
 	local t = self.ToolInstancesById[def.Id]
 	if t and t.Parent then return t end
 
-	t = self.ToolInstancesByName[def.Id]
-	if t and t.Parent then return t end
-
-	t = self.ToolInstancesByName[def.Name]
-	if t and t.Parent then return t end
-
 	local char = self.Character
 	if char then
 		for _, inst in ipairs(char:GetChildren()) do
 			if inst:IsA("Tool") then
 				local tid = inst:GetAttribute("ToolId")
-				if (type(tid) == "string" and tid == def.Id) or inst.Name == def.Id or inst.Name == def.Name then
+				if type(tid) == "string" and tid ~= "" then
+					if tid == def.Id then
+						self:_indexTool(inst)
+						return inst
+					end
+				elseif inst.Name == def.Name then
 					self:_indexTool(inst)
 					return inst
 				end
@@ -460,12 +522,20 @@ function RogueToolbar:_findToolInstanceByDef(def: ToolDef): Tool?
 	for _, inst in ipairs(self.Backpack:GetChildren()) do
 		if inst:IsA("Tool") then
 			local tid = inst:GetAttribute("ToolId")
-			if (type(tid) == "string" and tid == def.Id) or inst.Name == def.Id or inst.Name == def.Name then
+			if type(tid) == "string" and tid ~= "" then
+				if tid == def.Id then
+					self:_indexTool(inst)
+					return inst
+				end
+			elseif inst.Name == def.Name then
 				self:_indexTool(inst)
 				return inst
 			end
 		end
 	end
+
+	t = self:_findToolByNameWithoutId(def.Name)
+	if t then return t end
 
 	return nil
 end
@@ -474,18 +544,17 @@ function RogueToolbar:_findToolInstanceForSlot(slot: SlotUI): Tool?
 	local t = self.ToolInstancesById[slot.Tool.Id]
 	if t and t.Parent then return t end
 
-	t = self.ToolInstancesByName[slot.Tool.Id]
-	if t and t.Parent then return t end
-
-	t = self.ToolInstancesByName[slot.Tool.Name]
-	if t and t.Parent then return t end
-
 	local char = self.Character
 	if char then
 		for _, inst in ipairs(char:GetChildren()) do
 			if inst:IsA("Tool") then
 				local tid = inst:GetAttribute("ToolId")
-				if (type(tid) == "string" and tid == slot.Tool.Id) or inst.Name == slot.Tool.Id or inst.Name == slot.Tool.Name then
+				if type(tid) == "string" and tid ~= "" then
+					if tid == slot.Tool.Id then
+						self:_indexTool(inst)
+						return inst
+					end
+				elseif inst.Name == slot.Tool.Name then
 					self:_indexTool(inst)
 					return inst
 				end
@@ -496,12 +565,20 @@ function RogueToolbar:_findToolInstanceForSlot(slot: SlotUI): Tool?
 	for _, inst in ipairs(self.Backpack:GetChildren()) do
 		if inst:IsA("Tool") then
 			local tid = inst:GetAttribute("ToolId")
-			if (type(tid) == "string" and tid == slot.Tool.Id) or inst.Name == slot.Tool.Id or inst.Name == slot.Tool.Name then
+			if type(tid) == "string" and tid ~= "" then
+				if tid == slot.Tool.Id then
+					self:_indexTool(inst)
+					return inst
+				end
+			elseif inst.Name == slot.Tool.Name then
 				self:_indexTool(inst)
 				return inst
 			end
 		end
 	end
+
+	t = self:_findToolByNameWithoutId(slot.Tool.Name)
+	if t then return t end
 
 	return nil
 end
