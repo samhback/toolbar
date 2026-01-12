@@ -110,13 +110,16 @@ local function registerPickupTool(toolInst: Tool)
 
 	-- Try hotbar first; if full, go to toolbox.
 	local placedInHotbar = toolbar:AddToolToToolbar(toolId, toolName, nil)
-	if not placedInHotbar then
+	if placedInHotbar then
+		toolbar:SelectAndEquipById(toolId)
+	else
 		toolbar:AddToolToToolbox({
 			Id = toolId,
 			Name = toolName,
 			Kind = kind,
 			IconText = iconText,
 		}, true)
+		toolbar:EnsureUnequippedById(toolId)
 	end
 end
 

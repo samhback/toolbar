@@ -268,6 +268,28 @@ function RogueToolbar:AddToolToToolbar(toolId: string, toolName: string, insertI
 	return ok
 end
 
+function RogueToolbar:SelectAndEquipById(toolId: string): boolean
+	local slot = self:_findSlotByToolId(toolId)
+	if not slot then return false end
+
+	local tool = self:_findToolInstanceForSlot(slot)
+	if not tool then return false end
+
+	self:_clearSelection()
+	local equipped = self:_equipTool(tool)
+	self:_setSelected(slot, equipped)
+	return equipped
+end
+
+function RogueToolbar:EnsureUnequippedById(toolId: string): boolean
+	local tool = self:_findToolInstanceById(toolId)
+	if not tool then return false end
+	if self:_isEquipped(tool) then
+		return self:_unequipTool(tool)
+	end
+	return true
+end
+
 function RogueToolbar:RemoveToolFromToolbar(index: number, returnToToolbox: boolean?): ()
 	local slot = self.AllSlots[index]
 	if not slot then return end
@@ -377,6 +399,39 @@ end
 
 function RogueToolbar:_isEquipped(tool: Tool): boolean
 	return (self.Character ~= nil and tool.Parent == self.Character)
+end
+
+function RogueToolbar:_findToolInstanceById(toolId: string): Tool?
+	local t = self.ToolInstancesById[toolId]
+	if t and t.Parent then return t end
+
+	t = self.ToolInstancesByName[toolId]
+	if t and t.Parent then return t end
+
+	local char = self.Character
+	if char then
+		for _, inst in ipairs(char:GetChildren()) do
+			if inst:IsA("Tool") then
+				local tid = inst:GetAttribute("ToolId")
+				if (type(tid) == "string" and tid == toolId) or inst.Name == toolId then
+					self:_indexTool(inst)
+					return inst
+				end
+			end
+		end
+	end
+
+	for _, inst in ipairs(self.Backpack:GetChildren()) do
+		if inst:IsA("Tool") then
+			local tid = inst:GetAttribute("ToolId")
+			if (type(tid) == "string" and tid == toolId) or inst.Name == toolId then
+				self:_indexTool(inst)
+				return inst
+			end
+		end
+	end
+
+	return nil
 end
 
 function RogueToolbar:_findToolInstanceByDef(def: ToolDef): Tool?
@@ -821,6 +876,13 @@ function RogueToolbar:_clearSelection(): ()
 	for _, s in ipairs(self.AllSlots) do
 		if s.Selected then self:_setSelected(s, false) end
 	end
+end
+
+function RogueToolbar:_findSlotByToolId(toolId: string): SlotUI?
+	for _, s in ipairs(self.AllSlots) do
+		if s.Tool.Id == toolId then return s end
+	end
+	return nil
 end
 
 function RogueToolbar:_startCooldown(slot: SlotUI, cd: number): ()
